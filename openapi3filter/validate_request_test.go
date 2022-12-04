@@ -109,7 +109,7 @@ components:
 		name                 string
 		args                 args
 		expectedModification bool
-		expectedErr          error
+		expectedErrors       []error
 	}{
 		{
 			name: "Valid request with all fields set",
@@ -119,7 +119,7 @@ components:
 				apiKey:      "SomeKey",
 			},
 			expectedModification: false,
-			expectedErr:          nil,
+			expectedErrors:          nil,
 		},
 		{
 			name: "Valid request without certain fields",
@@ -129,7 +129,7 @@ components:
 				apiKey:      "SomeKey",
 			},
 			expectedModification: true,
-			expectedErr:          nil,
+			expectedErrors:          nil,
 		},
 		{
 			name: "Invalid operation params",
@@ -139,7 +139,7 @@ components:
 				apiKey:      "SomeKey",
 			},
 			expectedModification: false,
-			expectedErr:          &RequestError{},
+			expectedErrors:       []error{&RequestError{}},
 		},
 		{
 			name: "Invalid request body",
@@ -149,7 +149,7 @@ components:
 				apiKey:      "SomeKey",
 			},
 			expectedModification: false,
-			expectedErr:          &RequestError{},
+			expectedErrors:       []error{&RequestError{}},
 		},
 		{
 			name: "Invalid security",
@@ -159,7 +159,7 @@ components:
 				apiKey:      "",
 			},
 			expectedModification: false,
-			expectedErr:          &SecurityRequirementsError{},
+			expectedErrors:       []error{&SecurityRequirementsError{}},
 		},
 		{
 			name: "Invalid request body and security",
@@ -169,7 +169,7 @@ components:
 				apiKey:      "",
 			},
 			expectedModification: false,
-			expectedErr:          &SecurityRequirementsError{},
+			expectedErrors:       []error{&SecurityRequirementsError{}},
 		},
 	}
 	for _, tc := range tests {
@@ -201,8 +201,21 @@ components:
 				},
 			}
 			err = ValidateRequest(context.Background(), validationInput)
-			assert.IsType(t, tc.expectedErr, err, "ValidateRequest(): error = %v, expectedError %v", err, tc.expectedErr)
-			if tc.expectedErr != nil {
+			if merr, ok := err.(openapi3.MultiError); ok {
+				numExpected := len(tc.expectedErrors)
+				if numExpected > 1 {
+					panic("yo")
+				}
+				numExpected = 1
+				numActual := len(merr)
+				assert.Equal(t, numExpected, numActual,
+					"ValidateRequest(): expected %d errors, but got %d", numExpected, numActual)
+				for i, err := range merr {
+					assert.IsType(t, tc.expectedErrors[i], err, "ValidateRequest(): error = %v, expectedError %v", err, tc.expectedErrors[i])
+				}
+				return
+			} else if tc.expectedErrors != nil {
+				assert.IsType(t, tc.expectedErrors[0], err, "ValidateRequest(): error = %v, expectedError %v", err, tc.expectedErrors[0])
 				return
 			}
 			body, err := io.ReadAll(validationInput.Request.Body)

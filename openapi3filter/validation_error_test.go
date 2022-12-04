@@ -484,8 +484,9 @@ func TestValidationHandler_validateRequest(t *testing.T) {
 					return
 				}
 
-				e, ok := err.(*RequestError)
-				req.True(ok, "not a RequestError: %T -- %#v", err, err)
+				// e, ok := err.(*RequestError)
+				// req.True(ok, "not a RequestError: %T -- %#v", err, err)
+				e := requireErrorType(t, &RequestError{}, err).(*RequestError)
 
 				req.Equal(tt.wantErrReason, e.Reason)
 

@@ -244,7 +244,7 @@ func TestFilter(t *testing.T) {
 		URL:    "http://example.com/api/issue151?par2=par1_is_missing",
 	}
 	err = expect(req, resp)
-	require.IsType(t, &RequestError{}, err)
+	requireErrorType(t, &RequestError{}, err)
 
 	// Test query parameter openapi3filter
 	req = ExampleRequest{
@@ -373,6 +373,14 @@ func marshalReader(value interface{}) io.ReadCloser {
 		panic(err)
 	}
 	return ioutil.NopCloser(bytes.NewReader(data))
+}
+
+func requireErrorType(t *testing.T, expectedError interface{}, err error) error {
+	if merr, ok := err.(openapi3.MultiError); ok {
+		err = merr[0]
+	}
+	require.IsType(t, &RequestError{}, err)
+	return err
 }
 
 func TestValidateRequestBody(t *testing.T) {
