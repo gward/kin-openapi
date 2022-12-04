@@ -1,0 +1,121 @@
+---
+# Simple OpenAPI spec for testing openapimux package.
+#
+# Validate with:
+#
+#   swagger-cli validate openapimux/simplespec.yaml
+#   openapi lint openapimux/simplespec.yaml
+openapi: 3.0.3
+info:
+  title: Simple API
+  description: a simple API spec for testing
+  version: 0.0.1
+  license:
+    name: Apache 2.0
+    url: 'https://www.apache.org/licenses/LICENSE-2.0.html'
+
+servers:
+  - url: 'https://api.example.com/v0'
+paths:
+  /foo:
+    get:
+      summary: list foos
+      operationId: listFoos
+      parameters:
+        - name: bip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: foos
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /foo/{subfoo}:
+    summary: work with foos
+    post:
+      summary: create a foo
+      operationId: createFoo
+      parameters:
+        - name: subfoo
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^[abc]*$
+        - name: bip
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: fod
+          in: query
+          required: false
+          schema:
+            type: boolean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - length
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                  minLength: 2
+                length:
+                  type: integer
+                  minimum: 0
+
+                # the 'pizza' field itself is optional, but if you include it, you must both 'toppings' and 'size'
+                pizza:
+                  type: object
+                  required:
+                    - toppings
+                    - size
+                  properties:
+                    toppings:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          - MUSHROOM
+                          - SAUSAGE
+                    size:
+                      type: integer
+
+      responses:
+        '200':
+          description: foo created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+        '400':
+          description: bad foo
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - detail
+                properties:
+                  detail:
+                    type: string
