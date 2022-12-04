@@ -19,6 +19,7 @@ type Options struct {
 	// status not defined in OpenAPI spec
 	IncludeResponseStatus bool
 
+	// MultiError is ignored. ValidateRequest and ValidateResponse always return a MultiError (or nil).
 	MultiError bool
 
 	// See NoopAuthenticationFunc

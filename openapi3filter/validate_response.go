@@ -64,9 +64,7 @@ func ValidateResponse(ctx context.Context, input *ResponseValidationInput) error
 	}
 
 	opts := make([]openapi3.SchemaValidationOption, 0, 2)
-	if options.MultiError {
-		opts = append(opts, openapi3.MultiErrors())
-	}
+	opts = append(opts, openapi3.MultiErrors())
 	if options.customSchemaErrorFunc != nil {
 		opts = append(opts, openapi3.SetSchemaErrorMessageCustomizer(options.customSchemaErrorFunc))
 	}

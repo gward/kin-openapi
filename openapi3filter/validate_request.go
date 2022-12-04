@@ -49,10 +49,7 @@ func ValidateRequest(ctx context.Context, input *RequestValidationInput) (err er
 		security = &route.Spec.Security
 	}
 	if security != nil {
-		if err = ValidateSecurityRequirements(ctx, input, *security); err != nil && !options.MultiError {
-			return
-		}
-		if err != nil {
+		if err = ValidateSecurityRequirements(ctx, input, *security); err != nil {
 			me = append(me, err)
 		}
 	}
@@ -66,20 +63,14 @@ func ValidateRequest(ctx context.Context, input *RequestValidationInput) (err er
 			}
 		}
 
-		if err = ValidateParameter(ctx, input, parameter); err != nil && !options.MultiError {
-			return
-		}
-		if err != nil {
+		if err = ValidateParameter(ctx, input, parameter); err != nil {
 			me = append(me, err)
 		}
 	}
 
 	// For each parameter of the Operation
 	for _, parameter := range operationParameters {
-		if err = ValidateParameter(ctx, input, parameter.Value); err != nil && !options.MultiError {
-			return
-		}
-		if err != nil {
+		if err = ValidateParameter(ctx, input, parameter.Value); err != nil {
 			me = append(me, err)
 		}
 	}
@@ -87,10 +78,7 @@ func ValidateRequest(ctx context.Context, input *RequestValidationInput) (err er
 	// RequestBody
 	requestBody := operation.RequestBody
 	if requestBody != nil && !options.ExcludeRequestBody {
-		if err = ValidateRequestBody(ctx, input, requestBody.Value); err != nil && !options.MultiError {
-			return
-		}
-		if err != nil {
+		if err = ValidateRequestBody(ctx, input, requestBody.Value); err != nil {
 			me = append(me, err)
 		}
 	}
@@ -175,10 +163,8 @@ func ValidateParameter(ctx context.Context, input *RequestValidationInput, param
 	}
 
 	var opts []openapi3.SchemaValidationOption
-	if options.MultiError {
-		opts = make([]openapi3.SchemaValidationOption, 0, 1)
-		opts = append(opts, openapi3.MultiErrors())
-	}
+	opts = make([]openapi3.SchemaValidationOption, 0, 1)
+	opts = append(opts, openapi3.MultiErrors())
 	if options.customSchemaErrorFunc != nil {
 		opts = append(opts, openapi3.SetSchemaErrorMessageCustomizer(options.customSchemaErrorFunc))
 	}
@@ -277,9 +263,7 @@ func ValidateRequestBody(ctx context.Context, input *RequestValidationInput, req
 	if !options.SkipSettingDefaults {
 		opts = append(opts, openapi3.DefaultsSet(func() { defaultsSet = true }))
 	}
-	if options.MultiError {
-		opts = append(opts, openapi3.MultiErrors())
-	}
+	opts = append(opts, openapi3.MultiErrors())
 	if options.customSchemaErrorFunc != nil {
 		opts = append(opts, openapi3.SetSchemaErrorMessageCustomizer(options.customSchemaErrorFunc))
 	}
