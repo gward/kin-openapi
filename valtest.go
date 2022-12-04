@@ -47,6 +47,7 @@ func main() {
 		method string
 		path   string
 		body   string
+		header map[string][]string
 	}
 
 	testRequests := []testRequest{
@@ -55,30 +56,35 @@ func main() {
 			"GET",
 			"/v0/foo",
 			"",
+			nil,
 		},
 		{
 			"valid GET request with query param",
 			"GET",
 			"/v0/foo?bip=38",
 			"",
+			nil,
 		},
 		{
 			"invalid GET request: query param empty",
 			"GET",
 			"/v0/foo?bip=",
 			"",
+			nil,
 		},
 		{
 			"invalid GET request: query param not integer",
 			"GET",
 			"/v0/foo?bip=4x",
 			"",
+			nil,
 		},
 		{
 			"invalid GET request: query param below minimum",
 			"GET",
 			"/v0/foo?bip=0",
 			"",
+			nil,
 		},
 		{
 			"valid POST request",
@@ -88,6 +94,17 @@ func main() {
 				"name": "bob",
 				"length": 5
 			}`,
+			map[string][]string{"Api-Key": {"foo"}},
+		},
+		{
+			"invalid POST request: missing API key",
+			"POST",
+			"/v0/foo/aab",
+			`{
+				"name": "bob",
+				"length": 5
+			}`,
+			nil,
 		},
 		{
 			"invalid POST request: 1 error, in the body",
@@ -97,6 +114,7 @@ func main() {
 				"name": "bob",
 				"length": -1
 			}`,
+			map[string][]string{"Api-Key": {"foo"}},
 		},
 		{
 			"very invalid POST request: bad query parma, bad path param, bad body",
@@ -109,6 +127,7 @@ func main() {
 					"toppings": ["MUSHROOM", "PINEAPPLE"]
 				}
 			}`,
+			map[string][]string{"Api-Key": {"foo"}},
 		},
 	}
 
@@ -133,9 +152,15 @@ func main() {
 			testReq.method,
 			"https://api.example.com" + testReq.path,
 			bodyBuf)
+		// for name, val := range testReq.header {
+		// 	req.Header[name] = []string{val}
+		// }
+		if testReq.header != nil {
+			req.Header = testReq.header
+		}
 		fmt.Printf(
-			"test req %d: %s\n%s %s (%d byte body)\n",
-			i, testReq.desc, req.Method, req.URL, len(testReq.body))
+			"test req %d: %s\n%s %s (headers %v, %d-byte body)\n",
+			i, testReq.desc, req.Method, req.URL, req.Header, len(testReq.body))
 		if err != nil {
 			log.Fatal(err.Error())
 		}
@@ -147,6 +172,24 @@ func main() {
 		fmt.Println()
 	}
 
+}
+
+func verifyAPIKey(ctx context.Context, input *openapi3filter.AuthenticationInput) error {
+	if input.SecurityScheme.Type != "apiKey" {
+		panic("WTF 1")
+	}
+	if input.SecurityScheme.In != "header" {
+		panic("WTF 2")
+	}
+
+	// fmt.Printf("verifyAPIKey: input.SecurityScheme: {Type %q, In %q, name %q}\n",
+	// 	input.SecurityScheme.Type, input.SecurityScheme.In, input.SecurityScheme.Name)
+
+	_, found := input.RequestValidationInput.Request.Header[http.CanonicalHeaderKey(input.SecurityScheme.Name)]
+	if !found {
+		return fmt.Errorf("%v not found in %v", input.SecurityScheme.Name, input.SecurityScheme.In)
+	}
+	return nil
 }
 
 func validateRequest(ctx context.Context, router routers.Router, req *http.Request) {
@@ -162,6 +205,7 @@ func validateRequest(ctx context.Context, router routers.Router, req *http.Reque
 		Route:      route,
 		Options: &openapi3filter.Options{
 			MultiError: true,
+			AuthenticationFunc: verifyAPIKey,
 		},
 	}
 	err = openapi3filter.ValidateRequest(ctx, valInput)

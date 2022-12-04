@@ -119,3 +119,12 @@ paths:
                 properties:
                   detail:
                     type: string
+      security:
+        - apiKey: []
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      name: Api-Key
+      in: header
