@@ -268,14 +268,11 @@ func dumpKinError(err error, writer io.Writer, indent string) {
 	case *openapi3filter.SecurityRequirementsError:
 		fmt.Fprintf(
 			writer,
-			"%s%T (%d errors): %s\n",
+			"%s%T: %s\n",
 			indent,
 			err,
-			len(err.Errors),
 			err.Error())
-		for _, innerErr := range err.Errors {
-			dumpKinError(innerErr, writer, "  "+indent)
-		}
+		dumpKinError(err.Orig, writer, "  "+indent)
 	case *openapi3.SchemaError:
 		fmt.Fprintf(
 			writer,

@@ -317,15 +317,15 @@ func ValidateSecurityRequirements(ctx context.Context, input *RequestValidationI
 			if len(errs) == 0 {
 				errs = make([]error, 0, len(srs))
 			}
-			errs = append(errs, err)
+			errs = append(errs, &SecurityRequirementsError{
+				SecurityRequirements: srs,
+				Orig:                 err,
+			})
 			continue
 		}
 		return nil
 	}
-	return &SecurityRequirementsError{
-		SecurityRequirements: srs,
-		Errors:               errs,
-	}
+	return openapi3.MultiError(errs)
 }
 
 // validateSecurityRequirement validates a single OpenAPI 3 security requirement
