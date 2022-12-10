@@ -120,11 +120,22 @@ paths:
                   detail:
                     type: string
       security:
-        - apiKey: []
+        # client must supply (header Api-Key and cookie session_id) or (query param apikey)
+        - header_key: []
+          session_id: []
+        - param_key: []
 
 components:
   securitySchemes:
-    apiKey:
+    header_key:
       type: apiKey
       name: Api-Key
       in: header
+    session_id:
+      type: apiKey
+      name: session_id
+      in: cookie
+    param_key:
+      type: apiKey
+      name: apikey
+      in: query

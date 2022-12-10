@@ -94,10 +94,10 @@ func main() {
 				"name": "bob",
 				"length": 5
 			}`,
-			map[string][]string{"Api-Key": {"foo"}},
+			map[string][]string{"Api-Key": {"foo"}, "Cookie": {"123"}},
 		},
 		{
-			"invalid POST request: missing API key",
+			"invalid POST request: missing API key and cookie",
 			"POST",
 			"/v0/foo/aab",
 			`{
@@ -114,10 +114,10 @@ func main() {
 				"name": "bob",
 				"length": -1
 			}`,
-			map[string][]string{"Api-Key": {"foo"}},
+			map[string][]string{"Api-Key": {"foo"}, "Cookie": {"123"}},
 		},
 		{
-			"very invalid POST request: bad query parma, bad path param, bad body",
+			"very invalid POST request: bad query param, bad path param, bad body, bad auth",
 			"POST",
 			"/v0/foo/bab?bip=4x",
 			`{
@@ -174,22 +174,35 @@ func main() {
 
 }
 
-func verifyAPIKey(ctx context.Context, input *openapi3filter.AuthenticationInput) error {
-	if input.SecurityScheme.Type != "apiKey" {
-		panic("WTF 1")
-	}
-	if input.SecurityScheme.In != "header" {
-		panic("WTF 2")
-	}
+func verifySecurity(ctx context.Context, input *openapi3filter.AuthenticationInput) (err error) {
+	 // fmt.Printf("verifySecurity: input.SecurityScheme: {Type %q, In %q, name %q}\n",
+	 // 	 input.SecurityScheme.Type, input.SecurityScheme.In, input.SecurityScheme.Name)
 
-	// fmt.Printf("verifyAPIKey: input.SecurityScheme: {Type %q, In %q, name %q}\n",
-	// 	input.SecurityScheme.Type, input.SecurityScheme.In, input.SecurityScheme.Name)
+	if input.SecurityScheme.Type == "apiKey" && input.SecurityScheme.In == "header" {
+		_, found := input.RequestValidationInput.Request.Header[http.CanonicalHeaderKey(input.SecurityScheme.Name)]
 
-	_, found := input.RequestValidationInput.Request.Header[http.CanonicalHeaderKey(input.SecurityScheme.Name)]
-	if !found {
-		return fmt.Errorf("%v not found in %v", input.SecurityScheme.Name, input.SecurityScheme.In)
+		if !found {
+			err = fmt.Errorf("%v not found in %v", input.SecurityScheme.Name, input.SecurityScheme.In)
+		}
+		fmt.Printf("verifySecurity: header: return %+v\n", err)
+	} else if input.SecurityScheme.Type == "apiKey" && input.SecurityScheme.In == "cookie" {
+		_, found := input.RequestValidationInput.Request.Header["Cookie"]
+		if !found {
+			err = fmt.Errorf("no session cookie present")
+		}
+		fmt.Printf("verifySecurity: cookie: return %+v\n", err)
+	} else if input.SecurityScheme.Type == "apiKey" && input.SecurityScheme.In == "query" {
+		found := input.RequestValidationInput.QueryParams.Has(input.SecurityScheme.Name)
+		if !found {
+			err = fmt.Errorf("no auth query param found")
+		}
+		fmt.Printf("verifySecurity: query: return %+v\n", err)
 	}
-	return nil
+	return
+}
+
+func verifyAPIKey(ctx context.Context, input *openapi3filter.AuthenticationInput) (err error) {
+	return err
 }
 
 func validateRequest(ctx context.Context, router routers.Router, req *http.Request) {
@@ -205,7 +218,7 @@ func validateRequest(ctx context.Context, router routers.Router, req *http.Reque
 		Route:      route,
 		Options: &openapi3filter.Options{
 			MultiError: true,
-			AuthenticationFunc: verifyAPIKey,
+			AuthenticationFunc: verifySecurity,
 		},
 	}
 	err = openapi3filter.ValidateRequest(ctx, valInput)
@@ -252,6 +265,17 @@ func dumpKinError(err error, writer io.Writer, indent string) {
 			err.Parameter,
 			err.Reason)
 		dumpKinError(err.Err, writer, "  "+indent)
+	case *openapi3filter.SecurityRequirementsError:
+		fmt.Fprintf(
+			writer,
+			"%s%T (%d errors): %s\n",
+			indent,
+			err,
+			len(err.Errors),
+			err.Error())
+		for _, innerErr := range err.Errors {
+			dumpKinError(innerErr, writer, "  "+indent)
+		}
 	case *openapi3.SchemaError:
 		fmt.Fprintf(
 			writer,
