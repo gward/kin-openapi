@@ -50,7 +50,7 @@ func ValidateRequest(ctx context.Context, input *RequestValidationInput) (err er
 	}
 	if security != nil {
 		if err = ValidateSecurityRequirements(ctx, input, *security); err != nil {
-			me = append(me, err)
+			me = append(me, err.(openapi3.MultiError)...)
 		}
 	}
 
