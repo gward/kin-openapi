@@ -87,6 +87,15 @@ func main() {
 			nil,
 		},
 		{
+			// this is fun: it's not an integer, even if it was it doesn't fit in int32,
+			// and even if it did it violates 'minimum'
+			"invalid GET request: multiple problems with single query param",
+			"GET",
+			"/v0/foo?bip=-4294967296.54",
+			"",
+			nil,
+		},
+		{
 			"valid POST request",
 			"POST",
 			"/v0/foo/aab",
