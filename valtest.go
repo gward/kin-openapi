@@ -16,6 +16,91 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 )
 
+// axes to classify errors on:
+// - where in the request: query param, path param, header, cookie, request body
+// - where in the schema: security, operation, path, openapi root, ...?
+// - what in the schema: required, empty, invalid type, invalid value
+//
+// where in the schema: oh come on, who really cares?
+//
+// what I really want to know:
+//   query parameter x: required but missing
+//   query parameter y: cannot be empty
+//   header Foo-Bar: must be integer
+//   request body: a must be string (not array)
+//   request body: b: required but missing
+//
+// and I want _all_ the errors! not just the first one! why on earth would I ever _not_
+// want all the errors?!?
+
+type ValidationError struct {
+	// In specifies what part of the HTTP request was invalid: path, query, header,
+	// cookie, body. (That is, it takes the values of kin/openapi3.Parameter.In, plus
+	// "body".)
+	In string
+
+	// Name specifies the exact parameter/header/cookie/field that was invalid. If this
+	// describes a member of a JSON object in a JSON request body, it will be a JSON
+	// Pointer without the leading slash. Otherwise, it's simply the name of the
+	// parameter/header/cookie/field.
+	Name string
+
+	// IsMissing means that the value described by Name is required but not present.
+	IsMissing bool
+
+	// IsInvalid means that the value described by Name is present but does not fit the schema.
+	//IsInvalid bool
+
+	// Detail is a human-readable, informal, English-language description of the error.
+	// It does not include location information like "query parameter x" or "header Foo-Bar".
+	// That will be added by the Error() method.
+	Detail string
+}
+
+func (err ValidationError) Error() string {
+	switch err.In {
+	case "query":
+		return fmt.Sprintf("query parameter %q: %s", err.Name, err.Detail)
+	case "path":
+		return fmt.Sprintf("path parameter %q: %s", err.Name, err.Detail)
+	case "header":
+		return fmt.Sprintf("request header %q: %s", err.Name, err.Detail)
+	case "cookie":
+		return fmt.Sprintf("cookie %q: %s", err.Name, err.Detail)
+	case "body":
+		if err.IsMissing {
+			return fmt.Sprintf("request body: field %q is required but missing", err.Name)
+		} else {
+			return fmt.Sprintf("request body: field %q: %s", err.Name, err.Detail)
+		}
+	default:
+		return fmt.Sprintf("%s: %q: %s", err.In, err.Name, err.Detail)
+	}
+
+
+
+
+
+	// pieces := make([]string, 0, 3)
+	// inMap := map[string]string{
+	// 	"query": "query parameter",
+	// 	"path": "path parameter",
+	// 	"body": "request body",
+	// }
+	// in := inMap[err.In]
+	// if in == "" {
+	// 	in = err.In
+	// }
+
+	// pieces = append(pieces, in)
+	// pieces = append(pieces, err.Name)
+	// pieces = append(pieces, err.Detail)
+
+	// return strings.Join(pieces, ": ")
+}
+
+var _ error = ValidationError{}
+
 func main() {
 	ctx := context.Background()
 
@@ -237,6 +322,12 @@ func validateRequest(ctx context.Context, router routers.Router, req *http.Reque
 	}
 	dumpKinError(err, os.Stdout, "")
 
+	fmt.Printf("convertMultiError:\n")
+	errs := convertMultiError(err.(openapi3.MultiError))
+	for i, err := range errs {
+		fmt.Printf("  %d: %T %s\n", i, err, err.Error())
+	}
+
 
 	// issues := convertMultiError(err.(openapi3.MultiError))
 	// fmt.Printf("request validation err = %T (%d issues)\n", err, len(issues))
@@ -304,7 +395,72 @@ func dumpKinError(err error, writer io.Writer, indent string) {
 	}
 }
 
-func convertMultiError(err openapi3.MultiError) map[string][]string {
+func convertMultiError(rootErr openapi3.MultiError) (errs []error) {
+	errs = make([]error, 0, len(rootErr))
+	for _, err := range rootErr {
+		switch err := err.(type) {
+		case *openapi3filter.RequestError:
+			errs = append(errs, convertRequestError(err)...)
+
+		default:
+			errs = append(errs, err)
+		}
+	}
+
+	return errs
+}
+
+func convertRequestError(err *openapi3filter.RequestError) (errs []error) {
+	var in string
+	var name string
+	if err.Parameter != nil {
+		in = err.Parameter.In // "query", "path", etc.
+		name = err.Parameter.Name
+	} else if err.RequestBody != nil {
+		in = "body"
+	} else {
+		// unable to convert: return it as-is
+		// (hmmmm: not sure this handles SecurityRequirementsError from unpatched kin-openapi well)
+		return []error{err}
+	}
+
+	switch innerErr := err.Err.(type) {
+	case openapi3.MultiError:
+		for _, innerErr := range innerErr {
+
+			var detail string
+			var missing bool
+			if innerErr, ok := innerErr.(*openapi3.SchemaError); ok {
+				if err.Parameter == nil {
+					name = strings.Join(innerErr.JSONPointer(), "/")
+				}
+				detail = innerErr.Reason
+				missing = innerErr.SchemaField == "required"
+			} else {
+				detail, _, _ = strings.Cut(innerErr.Error(), "\n") // keep only the first line
+			}
+
+			errs = append(errs, ValidationError{
+				In: 	   in,
+				Name:  	   name,
+				IsMissing: missing,
+				Detail:    detail,
+			})
+		}
+
+	default:
+		// e.g. openapi3filter.ParseError, or just plain errors.errorString
+		errs = append(errs, ValidationError{
+			In: 	in,
+			Name:  	name,
+			Detail: innerErr.Error(),
+		})
+	}
+	return errs
+}
+
+
+func old_convertMultiError(err openapi3.MultiError) map[string][]string {
 	issues := make(map[string][]string)
 	for i, err := range err {
 		fmt.Printf("err[%d] = %T\n", i, err)
@@ -334,7 +490,6 @@ func convertMultiError(err openapi3.MultiError) map[string][]string {
 		case *openapi3filter.RequestError:
 			var msg string
 			// case err := err.Err.(type) {
-			
 			// }
 			if merr, ok := err.Err.(openapi3.MultiError); ok {
 				msg = fmt.Sprintf("%d sub-errors", len(merr))
@@ -358,7 +513,7 @@ func convertMultiError(err openapi3.MultiError) map[string][]string {
 			if err, ok := err.Err.(openapi3.MultiError); ok {
 				// RequestError wraps a MultiError: does that mean
 				// multiple problems with the same field?
-				for key, val := range convertMultiError(err) {
+				for key, val := range old_convertMultiError(err) {
 					issues[key] = append(issues[key], val...)
 				}
 				continue
