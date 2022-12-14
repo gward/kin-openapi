@@ -1,6 +1,7 @@
 package openapi3filter
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -71,12 +72,21 @@ func (err ResponseError) Unwrap() error {
 var _ error = &SecurityRequirementsError{}
 
 // SecurityRequirementsError is returned by ValidateSecurityRequirements
-// for every missing security requirement.
+// when no requirement is met.
 type SecurityRequirementsError struct {
 	SecurityRequirements openapi3.SecurityRequirements
-	Orig                 error
+	Errors               []error
 }
 
 func (err *SecurityRequirementsError) Error() string {
-	return fmt.Sprintf("security requirement failed: %s", err.Orig.Error())
+	buff := &bytes.Buffer{}
+	buff.WriteString("security requirements failed: ")
+	for i, e := range err.Errors {
+		buff.WriteString(e.Error())
+		if i != len(err.Errors)-1 {
+			buff.WriteString(" | ")
+		}
+	}
+
+	return buff.String()
 }
