@@ -17,11 +17,18 @@ info:
 servers:
   - url: 'https://api.example.com/v0'
 paths:
-  /foo:
+  /foo/{id}:
+    summary: work with foos
     get:
-      summary: list foos
-      operationId: listFoos
+      summary: get a foo
+      operationId: getFoo
       parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^[abc]*$
         - name: bip
           in: query
           required: false
@@ -31,24 +38,17 @@ paths:
             minimum: 1
       responses:
         '200':
-          description: foos
+          description: a single foo
           content:
             application/json:
               schema:
                 type: object
 
-  /foo/{subfoo}:
-    summary: work with foos
+  /foo:
     post:
       summary: create a foo
       operationId: createFoo
       parameters:
-        - name: subfoo
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: ^[abc]*$
         - name: bip
           in: query
           required: false
@@ -69,9 +69,6 @@ paths:
                 - name
                 - length
               properties:
-                id:
-                  type: string
-                  format: uuid
                 name:
                   type: string
                   minLength: 2
@@ -79,7 +76,7 @@ paths:
                   type: integer
                   minimum: 0
 
-                # the 'pizza' field itself is optional, but if you include it, you must both 'toppings' and 'size'
+                # the 'pizza' field itself is optional, but if you include it, you must include both 'toppings' and 'size'
                 pizza:
                   type: object
                   required:

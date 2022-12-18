@@ -139,35 +139,42 @@ func main() {
 		{
 			"valid GET request",
 			"GET",
-			"/v0/foo",
+			"/v0/foo/aba",
 			"",
 			nil,
 		},
 		{
 			"valid GET request with query param",
 			"GET",
-			"/v0/foo?bip=38",
+			"/v0/foo/aab?bip=38",
+			"",
+			nil,
+		},
+		{
+			"invalid GET request: path param does not match regex",
+			"GET",
+			"/v0/foo/aaad",
 			"",
 			nil,
 		},
 		{
 			"invalid GET request: query param empty",
 			"GET",
-			"/v0/foo?bip=",
+			"/v0/foo/aba?bip=",
 			"",
 			nil,
 		},
 		{
 			"invalid GET request: query param not integer",
 			"GET",
-			"/v0/foo?bip=4x",
+			"/v0/foo/aba?bip=4x",
 			"",
 			nil,
 		},
 		{
 			"invalid GET request: query param below minimum",
 			"GET",
-			"/v0/foo?bip=0",
+			"/v0/foo/aba?bip=0",
 			"",
 			nil,
 		},
@@ -176,14 +183,14 @@ func main() {
 			// and even if it did it violates 'minimum'
 			"invalid GET request: multiple problems with single query param",
 			"GET",
-			"/v0/foo?bip=-4294967296.54",
+			"/v0/foo/aba?bip=-4294967296.54",
 			"",
 			nil,
 		},
 		{
 			"valid POST request",
 			"POST",
-			"/v0/foo/aab",
+			"/v0/foo",
 			`{
 				"name": "bob",
 				"length": 5
@@ -193,7 +200,7 @@ func main() {
 		{
 			"invalid POST request: missing API key and cookie",
 			"POST",
-			"/v0/foo/aab",
+			"/v0/foo",
 			`{
 				"name": "bob",
 				"length": 5
@@ -203,7 +210,7 @@ func main() {
 		{
 			"invalid POST request: 1 error, in the body",
 			"POST",
-			"/v0/foo/bab?bip=3",
+			"/v0/foo?bip=3",
 			`{
 				"name": "bob",
 				"length": -1
@@ -211,9 +218,9 @@ func main() {
 			map[string][]string{"Api-Key": {"foo"}, "Cookie": {"123"}},
 		},
 		{
-			"very invalid POST request: bad query param, bad path param, bad body, bad auth",
+			"very invalid POST request: bad query param, bad body, bad auth",
 			"POST",
-			"/v0/foo/bab?bip=4x",
+			"/v0/foo?bip=4x",
 			`{
 				"name": "a",
 				"length": 3,
