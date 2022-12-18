@@ -36,6 +36,11 @@ paths:
             type: integer
             format: int32
             minimum: 1
+        - name: fod
+          in: query
+          required: true
+          schema:
+            type: boolean
       responses:
         '200':
           description: a single foo
@@ -54,11 +59,6 @@ paths:
           required: false
           schema:
             type: integer
-        - name: fod
-          in: query
-          required: false
-          schema:
-            type: boolean
       requestBody:
         required: true
         content:
