@@ -76,22 +76,16 @@ paths:
                   type: integer
                   minimum: 0
 
-                # the 'pizza' field itself is optional, but if you include it, you must include both 'toppings' and 'size'
-                pizza:
-                  type: object
-                  required:
-                    - toppings
-                    - size
-                  properties:
-                    toppings:
-                      type: array
-                      items:
-                        type: string
-                        enum:
-                          - MUSHROOM
-                          - SAUSAGE
-                    size:
-                      type: integer
+                # Specifying a snack is optional, but if it is present, it must be either pizza or cake.
+                snack:
+                  oneOf:
+                    - $ref: '#/components/schemas/pizza'
+                    - $ref: '#/components/schemas/cake'
+                  discriminator:
+                    propertyName: snack_type
+                    mapping:
+                      PIZZA: '#/components/schemas/pizza'
+                      CAKE: '#/components/schemas/cake'
 
       responses:
         '200':
@@ -137,3 +131,37 @@ components:
       type: apiKey
       name: apikey
       in: query
+
+  schemas:
+    pizza:
+      type: object
+      required:
+        - snack_type
+        - toppings
+        - size
+      properties:
+        toppings:
+          type: array
+          items:
+            type: string
+            enum:
+              - MUSHROOM
+              - SAUSAGE
+        size:
+          type: integer
+    cake:
+      type: object
+      required:
+        - snack_type
+        - flavour
+        - layers
+      properties:
+        flavour:
+          type: string
+          enum:
+            - CHOCOLATE
+            - VANILLA
+        layers:
+          type: integer
+          minimum: 1
+          maximum: 5

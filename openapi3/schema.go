@@ -927,7 +927,7 @@ func (schema *Schema) visitSetOperations(settings *schemaValidationSettings, val
 
 				discriminatorValString, okcheck := discriminatorVal.(string)
 				if !okcheck {
-					return errors.New("descriminator value is not a string")
+					return errors.New("discriminator value is not a string")
 				}
 
 				if discriminatorRef, okcheck = schema.Discriminator.Mapping[discriminatorValString]; len(schema.Discriminator.Mapping) > 0 && !okcheck {

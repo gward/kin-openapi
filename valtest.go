@@ -14,6 +14,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/samber/lo"
 )
 
 // axes to classify errors on:
@@ -104,6 +105,8 @@ var _ error = ValidationError{}
 func main() {
 	ctx := context.Background()
 
+	openapi3.SchemaErrorDetailsDisabled = true
+
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromFile("simplespec.yml")
 	//fmt.Printf("doc = %T %+v\nerr = %v\n", doc, doc, err)
@@ -134,6 +137,10 @@ func main() {
 		body   string
 		header map[string][]string
 	}
+
+	// still TO DO:
+	// * oneOf
+	// * anyOf? allOf? do we even use those?
 
 	testRequests := []testRequest{
 		{
@@ -188,12 +195,27 @@ func main() {
 			nil,
 		},
 		{
-			"valid POST request",
+			"valid POST request with no snack",
 			"POST",
 			"/v0/foo",
 			`{
 				"name": "bob",
 				"length": 5
+			}`,
+			map[string][]string{"Api-Key": {"foo"}, "Cookie": {"123"}},
+		},
+		{
+			"valid POST request with snack",
+			"POST",
+			"/v0/foo",
+			`{
+				"name": "bob",
+				"length": 5,
+				"snack": {
+					"snack_type": "CAKE",
+					"flavour": "CHOCOLATE",
+					"layers": 3
+				}
 			}`,
 			map[string][]string{"Api-Key": {"foo"}, "Cookie": {"123"}},
 		},
@@ -218,13 +240,28 @@ func main() {
 			map[string][]string{"Api-Key": {"foo"}, "Cookie": {"123"}},
 		},
 		{
-			"very invalid POST request: bad query param, bad body, bad auth",
+			"invalid POST request: 1 error, deep in the body (valid pizza, missing discriminator)",
+			"POST",
+			"/v0/foo?bip=3",
+			`{
+				"name": "bob",
+				"length": 3,
+				"snack": {
+					"toppings": ["MUSHROOM"],
+					"size": 12
+				}
+			}`,
+			map[string][]string{"Api-Key": {"foo"}, "Cookie": {"123"}},
+		},
+		{
+			"very invalid POST request: bad query param, bad body, bad pizza, bad auth",
 			"POST",
 			"/v0/foo?bip=4x",
 			`{
 				"name": "a",
 				"length": 3,
-				"pizza": {
+				"snack": {
+					"snack_type": "PIZZA",
 					"toppings": ["MUSHROOM", "PINEAPPLE"]
 				}
 			}`,
@@ -285,19 +322,16 @@ func verifySecurity(ctx context.Context, input *openapi3filter.AuthenticationInp
 		if !found {
 			err = fmt.Errorf("%v not found in %v", input.SecurityScheme.Name, input.SecurityScheme.In)
 		}
-		fmt.Printf("verifySecurity: header: return %+v\n", err)
 	} else if input.SecurityScheme.Type == "apiKey" && input.SecurityScheme.In == "cookie" {
 		_, found := input.RequestValidationInput.Request.Header["Cookie"]
 		if !found {
 			err = fmt.Errorf("no session cookie present")
 		}
-		fmt.Printf("verifySecurity: cookie: return %+v\n", err)
 	} else if input.SecurityScheme.Type == "apiKey" && input.SecurityScheme.In == "query" {
 		found := input.RequestValidationInput.QueryParams.Has(input.SecurityScheme.Name)
 		if !found {
 			err = fmt.Errorf("no auth query param found")
 		}
-		fmt.Printf("verifySecurity: query: return %+v\n", err)
 	}
 	return
 }
@@ -327,6 +361,7 @@ func validateRequest(ctx context.Context, router routers.Router, req *http.Reque
 		fmt.Printf("no validation errors\n")
 		return
 	}
+	fmt.Printf("err.Error() = %s\n", err.Error())
 	dumpKinError(err, os.Stdout, "")
 
 	fmt.Printf("convertMultiError:\n")
@@ -363,13 +398,22 @@ func dumpKinError(err error, writer io.Writer, indent string) {
 			dumpKinError(innerErr, writer, "  "+indent)
 		}
 	case *openapi3filter.RequestError:
+		param := "<nil>"
+		body := "<nil>"
+		if err.Parameter != nil {
+			param = fmt.Sprintf("{In %q, Name %q}", err.Parameter.In, err.Parameter.Name)
+		}
+		if err.RequestBody != nil {
+			body = fmt.Sprintf("{Content: %s}", strings.Join(lo.Keys(err.RequestBody.Content), ", "))
+		}
 		fmt.Fprintf(
 			writer,
-			"%s%T: {Input: %T, Parameter: %T, Reason: %q}\n",
+			"%s%T: {Input: %T, Parameter: %s, RequestBody: %s, Reason: %q}\n",
 			indent,
 			err,
 			err.Input,
-			err.Parameter,
+			param,
+			body,
 			err.Reason)
 		dumpKinError(err.Err, writer, "  "+indent)
 	case *openapi3filter.SecurityRequirementsError:
@@ -433,18 +477,17 @@ func convertRequestError(err *openapi3filter.RequestError) (errs []error) {
 
 	switch innerErr := err.Err.(type) {
 	case openapi3.MultiError:
-		for _, innerErr := range innerErr {
-
+		for _, elemErr := range innerErr {
 			var detail string
 			var missing bool
-			if innerErr, ok := innerErr.(*openapi3.SchemaError); ok {
+			if innerErr, ok := elemErr.(*openapi3.SchemaError); ok {
 				if err.Parameter == nil {
 					name = strings.Join(innerErr.JSONPointer(), "/")
 				}
 				detail = innerErr.Reason
 				missing = innerErr.SchemaField == "required"
 			} else {
-				detail, _, _ = strings.Cut(innerErr.Error(), "\n") // keep only the first line
+				detail = elemErr.Error()
 			}
 
 			errs = append(errs, ValidationError{
